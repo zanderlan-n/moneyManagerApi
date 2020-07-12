@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "es5",
+    "outDir": "dist",
+    "lib": ["dom"],
+    "allowJs": true,
+    "baseUrl": ".",
+    "noImplicitAny": false,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "skipLibCheck": true,
+    "moduleResolution": "node",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "paths": {
+      "views/*": ["./routes"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["node_modules"]
+}
