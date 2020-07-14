@@ -1,6 +1,20 @@
-const mongoose = require('mongoose');
+import mongoose, { Schema, Document } from 'mongoose';
 
-const { Schema } = mongoose;
+export interface IINvestmentDetails extends Document {
+  amount: number;
+  date: Date;
+  before_amount: number;
+  after_amount: number;
+}
+
+export interface IInvestment extends Document {
+  name: string;
+  current_value: number;
+  invested_amount: number;
+  percentage: number;
+  start_date: Date;
+  details: IINvestmentDetails;
+}
 
 const InvestmentDetails = new Schema({
   amount: {
@@ -47,7 +61,8 @@ const InvestmentSchema = new Schema({
     type: [InvestmentDetails],
   },
 });
-// criar Modelo_Investment baseado em PISchema: 'PontosInteresse'->nome da // coleção
-const Investment = mongoose.model('Investment', InvestmentSchema);
-// exportar Modelo_Investment
-module.exports = Investment;
+
+export const Investment = mongoose.model<IInvestment>(
+  'Investment',
+  InvestmentSchema
+);

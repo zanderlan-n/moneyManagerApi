@@ -13,4 +13,4 @@ router.put('/:id', investmentsController.update);
 
 router.delete('/:id', investmentsController.delete);
 
-module.exports = router;
+export default router;

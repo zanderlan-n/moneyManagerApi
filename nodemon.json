@@ -1,5 +1,10 @@
 {
+  "restartable": "rs",
+  "ignore": [".git", "node_modules/**/node_modules"],
+  "verbose": true,
   "execMap": {
     "js": "node -r sucrase/register"
-  }
+  },
+  "watch": ["*.ts"],
+  "ext": "js,json,ts"
 }
