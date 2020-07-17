@@ -1,44 +1,52 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { IReservePart } from './reservePart';
 
-export interface IInvestmentDetails extends Document {
-  amount: number;
-  date: Date;
-  before_amount: number;
-  after_amount: number;
+export interface IFeeDetails extends Document {
+  name: string;
+  value: number;
 }
 
-export interface IInvestment extends Document {
+export interface IFee extends Document {
+  month: number;
+  total_value: number;
+  details: IFeeDetails[];
+}
+
+export interface IReserve extends Document {
   name: string;
   current_value: number;
-  invested_amount: number;
-  percentage: number;
-  start_date: Date;
-  details: IInvestmentDetails[];
+  goal_value: number;
+  missing_value: number;
   reserves_parts: IReservePart[];
+  fee: IFee[];
 }
 
-const InvestmentDetailsSchema = new Schema({
-  amount: {
-    type: Number,
+const FeeDetailsSchema = new Schema({
+  name: {
+    type: String,
     required: [true, '*Campo obrigatório!'],
   },
-  date: {
-    type: Date,
-    required: [true, '*Campo obrigatório!'],
-  },
-  before_amount: {
-    type: Number,
-    required: [true, '*Campo obrigatório!'],
-  },
-  after_amount: {
+  value: {
     type: Number,
     required: [true, '*Campo obrigatório!'],
   },
 });
 
-// Investment Schema
-const InvestmentSchema = new Schema({
+const FeeSchema = new Schema({
+  month: {
+    type: Number,
+    required: [true, '*Campo obrigatório!'],
+  },
+  total_value: {
+    type: Number,
+    required: [true, '*Campo obrigatório!'],
+  },
+  details: {
+    type: [FeeDetailsSchema],
+  },
+});
+
+export const ReserveSchema = new Schema({
   name: {
     type: String,
     required: [true, '*Campo obrigatório!'],
@@ -47,25 +55,20 @@ const InvestmentSchema = new Schema({
     type: Number,
     required: [true, '*Campo obrigatório!'],
   },
-  invested_amount: {
+  goal_value: {
     type: Number,
     required: [true, '*Campo obrigatório!'],
   },
-  percentage: {
+  missing_value: {
     type: Number,
     required: [true, '*Campo obrigatório!'],
-  },
-  start_date: {
-    type: Date,
-    required: [true, '*Campo obrigatório!'],
-  },
-  details: {
-    type: [InvestmentDetailsSchema],
   },
   reserves_parts: [{ type: Schema.Types.ObjectId, ref: 'reservesParts' }],
+  account_fee: [
+    {
+      type: FeeSchema,
+    },
+  ],
 });
 
-export const Investment = mongoose.model<IInvestment>(
-  'Investments',
-  InvestmentSchema
-);
+export const Reserve = mongoose.model<IReserve>('reserves', ReserveSchema);

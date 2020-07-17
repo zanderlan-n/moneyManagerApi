@@ -14,7 +14,7 @@ export const snakeObjToCamel = (obj: any) => {
     if (obj[value].constructor === Object) {
       obj[value] = snakeObjToCamel(obj[value]);
     }
-    (acc as any)[snakeToCamel(value)] = obj[value];
+    acc[snakeToCamel(value)] = obj[value];
     return acc;
   }, {});
 };
