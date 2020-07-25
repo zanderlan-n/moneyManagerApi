@@ -1,15 +1,17 @@
-import { Investment, IInvestment } from '../models/investment';
-import { snakeObjToCamel, camelObjToSnake } from '../utils/parsers';
+import { isNumber } from '../utils/validators';
+import { Account, IAccount } from '../models/account';
+import { camelObjToSnake } from '../utils/parsers';
+import log from './logController';
 
-const investmentsController = {
+const accountsController = {
   get: async (req, res) => {
     try {
-      const investment = await Investment.findById(req.params.id);
-      res.send(investment);
+      const account = await Account.findById(req.params.id);
+      res.send(account);
     } catch (err) {
       console.error(err);
       const error = {
-        msg: 'Falha na busca do investimento',
+        msg: 'Falha na busca da conta',
         code: 422,
         stacktrace: err,
       };
@@ -18,12 +20,12 @@ const investmentsController = {
   },
   list: async (req, res) => {
     try {
-      const investments = await Investment.find({});
-      res.send(investments);
+      const accounts = await Account.find({});
+      res.send(accounts);
     } catch (err) {
       console.error(err);
       const error = {
-        msg: 'Falha na busca dos investimentos',
+        msg: 'Falha na busca das contas',
         code: 422,
         stacktrace: err,
       };
@@ -32,12 +34,12 @@ const investmentsController = {
   },
   add: async (req, res) => {
     try {
-      const investment = await Investment.create(camelObjToSnake(req.body));
-      return res.json(investment);
+      const account = await Account.create(camelObjToSnake(req.body));
+      return res.json(account);
     } catch (err) {
       console.error(err);
       const error = {
-        msg: 'Falha na criação do investimento',
+        msg: 'Falha na criação da conta',
         code: 422,
         stacktrace: err,
       };
@@ -45,21 +47,21 @@ const investmentsController = {
     }
   },
   update: async (req, res) => {
-    const toUpdateInvestment: Partial<IInvestment> = { ...req.body };
+    const toUpdateAccount: Partial<IAccount> = { ...req.body };
 
     try {
-      const investment = await Investment.findByIdAndUpdate(
+      const account = await Account.findByIdAndUpdate(
         req.params.id,
         {
-          $set: camelObjToSnake(toUpdateInvestment),
+          $set: camelObjToSnake(toUpdateAccount),
         },
         { new: true }
       );
-      res.send(investment);
+      res.send(account);
     } catch (err) {
       console.error(err);
       const error = {
-        msg: 'Falha na atualização do investimento',
+        msg: 'Falha na atualização da conta',
         code: 422,
         stacktrace: err,
       };
@@ -68,19 +70,92 @@ const investmentsController = {
   },
   delete: async (req, res) => {
     try {
-      const deletedInvestment = await Investment.findByIdAndRemove(
-        req.params.id
-      );
-      res.send(deletedInvestment);
+      const deletedAccount = await Account.findByIdAndRemove(req.params.id);
+      res.send(deletedAccount);
     } catch (err) {
       console.error(err);
       const error = {
-        msg: 'Falha na exclusão do investimento',
+        msg: 'Falha na exclusão da conta',
         code: 422,
         stacktrace: err,
       };
       res.status(422).send(error);
     }
   },
+  addMoney: async (req, res) => {
+    const { amount } = req.body;
+    if (!amount && !isNumber(amount)) {
+      res.status(422).send({
+        msg: 'Envie uma quantia valida',
+        code: 422,
+      });
+    }
+    try {
+      const account = await Account.findByIdAndUpdate(
+        req.params.id,
+        {
+          $inc: { total_value: amount, net_value: amount },
+        },
+        { new: true }
+      );
+      if (!account) {
+        res.status(422).send({
+          msg: 'Não foi possivel atualizar a conta',
+          code: 422,
+        });
+      } else {
+        log.insert({
+          date: new Date(),
+          description: `Adicionado ${amount} reais a conta ${account.name} de ID: ${account.id} valor final ${account.total_value}`,
+        });
+        res.send(account);
+      }
+    } catch (err) {
+      console.error(err);
+      res.status(422).send({
+        msg: 'Falha na atualização da quantia',
+        code: 422,
+        stacktrace: err,
+      });
+    }
+  },
+  removeMoney: async (req, res) => {
+    const { amount } = req.body;
+    if (!amount && !isNumber(amount)) {
+      res.status(422).send({
+        msg: 'Envie uma quantia valida',
+        code: 422,
+      });
+    }
+    try {
+      const negativeAmount = amount * -1;
+      const account = await Account.findByIdAndUpdate(
+        req.params.id,
+        {
+          $inc: { total_value: negativeAmount, net_value: negativeAmount },
+        },
+        { new: true }
+      );
+      if (!account) {
+        res.status(422).send({
+          msg: 'Não foi possivel atualizar a conta',
+          code: 422,
+        });
+      } else {
+        log.insert({
+          date: new Date(),
+          description: `Removido ${amount} reais da conta ${account.name} de ID: ${account.id} valor final ${account.total_value}`,
+        });
+        res.send(account);
+      }
+    } catch (err) {
+      console.error(err);
+      res.status(422).send({
+        msg: 'Falha na atualização da quantia',
+        code: 422,
+        stacktrace: err,
+      });
+    }
+  },
 };
-export default investmentsController;
+export default accountsController;

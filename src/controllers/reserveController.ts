@@ -1,15 +1,15 @@
-import { Investment, IInvestment } from '../models/investment';
+import { Reserve, IReserve } from '../models/reserve';
 import { camelObjToSnake } from '../utils/parsers';
 
-const investmentsController = {
+const reservesController = {
   get: async (req, res) => {
     try {
-      const investment = await Investment.findById(req.params.id);
-      res.send(investment);
+      const reserve = await Reserve.findById(req.params.id);
+      res.send(reserve);
     } catch (err) {
       console.error(err);
       const error = {
-        msg: 'Falha na busca do investimento',
+        msg: 'Falha na busca da reserva',
         code: 422,
         stacktrace: err,
       };
@@ -18,12 +18,12 @@ const investmentsController = {
   },
   list: async (req, res) => {
     try {
-      const investments = await Investment.find({});
-      res.send(investments);
+      const reserves = await Reserve.find({});
+      res.send(reserves);
     } catch (err) {
       console.error(err);
       const error = {
-        msg: 'Falha na busca dos investimentos',
+        msg: 'Falha na busca das reservas',
         code: 422,
         stacktrace: err,
       };
@@ -32,12 +32,12 @@ const investmentsController = {
   },
   add: async (req, res) => {
     try {
-      const investment = await Investment.create(camelObjToSnake(req.body));
-      return res.json(investment);
+      const reserve = await Reserve.create(camelObjToSnake(req.body));
+      return res.json(reserve);
     } catch (err) {
       console.error(err);
       const error = {
-        msg: 'Falha na criação do investimento',
+        msg: 'Falha na criação da reserva',
         code: 422,
         stacktrace: err,
       };
@@ -45,20 +45,20 @@ const investmentsController = {
     }
   },
   update: async (req, res) => {
-    const toUpdateInvestment: Partial<IInvestment> = { ...req.body };
+    const toUpdateReserve: Partial<IReserve> = { ...req.body };
     let result;
     try {
-      const investment = await Investment.findByIdAndUpdate(
+      const reserve = await Reserve.findByIdAndUpdate(
         req.params.id,
         {
-          $set: camelObjToSnake(toUpdateInvestment),
+          $set: camelObjToSnake(toUpdateReserve),
         },
         { new: true }
       );
-      if (!investment) {
+      if (!reserve) {
         res.status(422);
         result = {
-          msg: 'Não possivel localizar o investimento.',
+          msg: 'Não possivel localizar a reserva.',
           code: 422,
         };
       }
@@ -66,7 +66,7 @@ const investmentsController = {
       console.error(err);
       res.status(422);
       result = {
-        msg: 'Falha na atualização do investimento',
+        msg: 'Falha na atualização da reserva',
         code: 422,
         stacktrace: err,
       };
@@ -76,14 +76,12 @@ const investmentsController = {
   },
   delete: async (req, res) => {
     try {
-      const deletedInvestment = await Investment.findByIdAndRemove(
-        req.params.id
-      );
-      res.send(deletedInvestment);
+      const deletedReserve = await Reserve.findByIdAndRemove(req.params.id);
+      res.send(deletedReserve);
     } catch (err) {
       console.error(err);
       const error = {
-        msg: 'Falha na exclusão do investimento',
+        msg: 'Falha na exclusão da reserva',
         code: 422,
         stacktrace: err,
       };
@@ -91,4 +89,4 @@ const investmentsController = {
     }
   },
 };
-export default investmentsController;
+export default reservesController;

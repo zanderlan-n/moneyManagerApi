@@ -4,7 +4,7 @@ export const snakeToCamel = (str: string) => {
   );
 };
 
-export const snakeObjToCamel = (obj: any) => {
+export const snakeObjToCamel = (obj: any): any => {
   return Object.keys(obj).reduce((acc, value) => {
     if (Array.isArray(obj[value])) {
       obj[value] = obj[value].map((item: any) => {
@@ -14,7 +14,7 @@ export const snakeObjToCamel = (obj: any) => {
     if (obj[value].constructor === Object) {
       obj[value] = snakeObjToCamel(obj[value]);
     }
-    acc[snakeToCamel(value)] = obj[value];
+    (acc as any)[snakeToCamel(value)] = obj[value];
     return acc;
   }, {});
 };
@@ -22,7 +22,7 @@ export const snakeObjToCamel = (obj: any) => {
 export const camelToSnake = (str: any) =>
   str.replace(/[A-Z]/g, (group: string) => `_${group.toLowerCase()}`);
 
-export const camelObjToSnake = (obj: any) => {
+export const camelObjToSnake = (obj: any): any => {
   return Object.keys(obj).reduce((acc, value) => {
     if (Array.isArray(obj[value])) {
       obj[value] = obj[value].map((item: any) => {
