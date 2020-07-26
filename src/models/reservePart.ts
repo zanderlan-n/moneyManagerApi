@@ -16,7 +16,7 @@ export const ReservePartSchema = new Schema({
   },
   investment: {
     type: Schema.Types.ObjectId,
-    ref: 'reserves',
+    ref: 'investment',
   },
   reserve: {
     type: Schema.Types.ObjectId,

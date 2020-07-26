@@ -6,7 +6,14 @@ import log from './logController';
 const accountsController = {
   get: async (req, res) => {
     try {
-      const account = await Account.findById(req.params.id);
+      const account = await Account.findById(req.params.id).populate({
+        path: 'reserves_parts',
+        populate: {
+          path: 'reserve',
+          model: 'reserves',
+          select: 'name',
+        },
+      });
       res.send(account);
     } catch (err) {
       console.error(err);

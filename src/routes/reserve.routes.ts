@@ -13,4 +13,5 @@ router.put('/:id', reserveController.update);
 
 router.delete('/:id', reserveController.delete);
 
+router.put('/addmoney/:id', reserveController.addMoney);
 export default router;
