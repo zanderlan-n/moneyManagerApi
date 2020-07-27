@@ -12,11 +12,11 @@ export interface IReservePart extends Document {
 export const ReservePartSchema = new Schema({
   account: {
     type: Schema.Types.ObjectId,
-    ref: 'account',
+    ref: 'accounts',
   },
   investment: {
     type: Schema.Types.ObjectId,
-    ref: 'investment',
+    ref: 'investments',
   },
   reserve: {
     type: Schema.Types.ObjectId,

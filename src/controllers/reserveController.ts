@@ -9,7 +9,15 @@ import { ReservePart, IReservePart } from '../models/reservePart';
 const reservesController = {
   get: async (req, res) => {
     try {
-      const reserve = await Reserve.findById(req.params.id);
+      const reserve = await Reserve.findById(req.params.id).populate({
+        path: 'reserves_parts',
+        populate: {
+          path: 'account',
+          model: 'accounts',
+          select: 'name',
+        },
+      });
+
       res.send(reserve);
     } catch (err) {
       console.error(err);
@@ -93,6 +101,60 @@ const reservesController = {
       res.status(422).send(error);
     }
   },
+  removeMoney: async (req, res) => {
+    const { amount, reserve: reserveId, account: accountId, refund } = req.body;
+    if (!amount && !isNumber(amount)) {
+      res.status(422).send({
+        msg: 'Envie uma quantia valida',
+        code: 422,
+      });
+      return;
+    }
+
+    try {
+      const reserveToUpdate = await Reserve.findById(reserveId);
+      const accountToUpdate = await Account.findById(accountId);
+      if (!accountToUpdate || !reserveToUpdate) {
+        res.status(422).send({
+          msg: 'Conta ou reserva não encontrada',
+          code: 422,
+        });
+        return;
+      }
+      const reservePart = await ReservePart.findOne({
+        reserve: reserveToUpdate.id,
+        account: accountToUpdate.id,
+      });
+      if (!reservePart) {
+        res.status(422).send({
+          msg: 'Parte da reserva não encontrada',
+          code: 422,
+        });
+        return;
+      }
+      reservePart.value -= amount;
+      accountToUpdate.total_value -= amount;
+      reserveToUpdate.current_value -= amount;
+      if (refund) {
+        reservePart.refund_value += amount;
+      }
+      reservePart.save();
+      accountToUpdate.save();
+      reserveToUpdate.save();
+      log.insert({
+        date: new Date(),
+        description: `Removido ${amount} reais da reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} valor final ${reserveToUpdate.current_value}`,
+      });
+      res.send(reserveToUpdate);
+    } catch (err) {
+      console.error(err);
+      res.status(422).send({
+        msg: 'Falha na atualização da quantia',
+        code: 422,
+        stacktrace: err,
+      });
+    }
+  },
   addMoney: async (req, res) => {
     const {
       amount,
@@ -150,6 +212,7 @@ const reservesController = {
         reservePart = await ReservePart.create({
           ...queryParam,
           value: amount,
+          refund_value: 0,
         });
         isNewReservePart = true;
       }
@@ -176,6 +239,11 @@ const reservesController = {
         // investmentToUpdate.save();
       }
       reservePart.value += amount;
+      if (reservePart.refund_value - amount < 0) {
+        reservePart.refund_value = 0;
+      } else {
+        reservePart.refund_value -= amount;
+      }
       reservePart.save();
       if (isNewReservePart) {
         reserveToUpdate.reserves_parts.push(reservePart.id);
@@ -192,7 +260,50 @@ const reservesController = {
         date: new Date(),
         description: `Adicionado ${amount} reais a reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} valor final ${reserveToUpdate.current_value}`,
       });
-      res.send(reservePart);
+
+      res.send(reserveToUpdate);
+    } catch (err) {
+      console.error(err);
+      res.status(422).send({
+        msg: 'Falha na atualização da quantia',
+        code: 422,
+        stacktrace: err,
+      });
+    }
+  },
+  updateGoal: async (req, res) => {
+    const { reserve: reserveId, newGoal } = req.body;
+    if (!newGoal && !isNumber(newGoal)) {
+      res.status(422).send({
+        msg: 'Envie uma quantia valida',
+        code: 422,
+      });
+      return;
+    }
+    if (!reserveId) {
+      res.status(422).send({
+        msg: 'Envie um id valido',
+        code: 422,
+      });
+      return;
+    }
+    try {
+      const reserveToUpdate = await Reserve.findById(reserveId);
+      if (!reserveToUpdate) {
+        res.status(422).send({
+          msg: 'Reserva não encontrada',
+          code: 422,
+        });
+        return;
+      }
+      reserveToUpdate.goal_value = newGoal;
+      reserveToUpdate.save();
+
+      log.insert({
+        date: new Date(),
+        description: `A reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} teve sua meta atualizada para ${reserveToUpdate.goal_value}`,
+      });
+      res.status(200).send(reserveToUpdate);
     } catch (err) {
       console.error(err);
       res.status(422).send({
@@ -203,4 +314,5 @@ const reservesController = {
     }
   },
 };
+
 export default reservesController;

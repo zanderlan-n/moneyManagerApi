@@ -61,7 +61,6 @@ export const ReserveSchema = new Schema({
   },
   missing_value: {
     type: Number,
-    required: [true, '*Campo obrigatório!'],
   },
   reserves_parts: [{ type: Schema.Types.ObjectId, ref: 'reservesParts' }],
   account_fee: [

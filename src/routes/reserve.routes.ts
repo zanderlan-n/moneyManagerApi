@@ -13,5 +13,10 @@ router.put('/:id', reserveController.update);
 
 router.delete('/:id', reserveController.delete);
 
-router.put('/addmoney/:id', reserveController.addMoney);
+router.post('/addmoney/', reserveController.addMoney);
+
+router.post('/removemoney/', reserveController.removeMoney);
+
+router.post('/updategoal', reserveController.updateGoal);
+
 export default router;
