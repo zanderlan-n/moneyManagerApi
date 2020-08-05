@@ -10,6 +10,7 @@ const dbName = 'moneymanager';
 mongoose.connect(`mongodb://localhost/${dbName}`, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+  useFindAndModify: false,
 });
 
 mongoose.connection.on('connected', function () {

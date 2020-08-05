@@ -5,7 +5,6 @@ export interface IInvestmentDetails extends Document {
   amount: number;
   date: Date;
   before_amount: number;
-  after_amount: number;
 }
 
 export interface IInvestment extends Document {
@@ -28,10 +27,6 @@ const InvestmentDetailsSchema = new Schema({
     required: [true, '*Campo obrigatório!'],
   },
   before_amount: {
-    type: Number,
-    required: [true, '*Campo obrigatório!'],
-  },
-  after_amount: {
     type: Number,
     required: [true, '*Campo obrigatório!'],
   },

@@ -1,10 +1,12 @@
+import { ObjectId } from 'mongodb';
 import { Reserve, IReserve } from '../models/reserve';
 import { camelObjToSnake } from '../utils/parsers';
 import { isNumber } from '../utils/validators';
 import { Account, IAccount } from '../models/account';
 import log from './logController';
 import { Investment } from '../models/investment';
-import { ReservePart, IReservePart } from '../models/reservePart';
+import { ReservePart, IReservePart, ReservePart } from '../models/reservePart';
+import { sumItensInArray } from '../utils/utils';
 
 const reservesController = {
   get: async (req, res) => {
@@ -18,6 +20,11 @@ const reservesController = {
         },
       });
 
+      if (reserve)
+        reserve.current_value = sumItensInArray(
+          reserve?.reserves_parts,
+          'value'
+        );
       res.send(reserve);
     } catch (err) {
       console.error(err);
@@ -31,7 +38,13 @@ const reservesController = {
   },
   list: async (req, res) => {
     try {
-      const reserves = await Reserve.find({});
+      const reserves = await Reserve.find({}).populate('reserves_parts');
+      reserves.forEach((item, i) => {
+        reserves[i].current_value = sumItensInArray(
+          item.reserves_parts,
+          'value'
+        );
+      });
       res.send(reserves);
     } catch (err) {
       console.error(err);
@@ -59,7 +72,6 @@ const reservesController = {
   },
   update: async (req, res) => {
     const toUpdateReserve: Partial<IReserve> = { ...req.body };
-    let result;
     try {
       const reserve = await Reserve.findByIdAndUpdate(
         req.params.id,
@@ -69,23 +81,21 @@ const reservesController = {
         { new: true }
       );
       if (!reserve) {
-        res.status(422);
-        result = {
+        res.status(422).send({
           msg: 'Não possivel localizar a reserva.',
           code: 422,
-        };
+        });
+        return;
       }
+      res.send(reserve);
     } catch (err) {
       console.error(err);
-      res.status(422);
-      result = {
+      res.status(422).send({
         msg: 'Falha na atualização da reserva',
         code: 422,
         stacktrace: err,
-      };
+      });
     }
-
-    res.send(result);
   },
   delete: async (req, res) => {
     try {
@@ -101,7 +111,7 @@ const reservesController = {
       res.status(422).send(error);
     }
   },
-  removeMoney: async (req, res) => {
+  withdrawMoney: async (req, res) => {
     const { amount, reserve: reserveId, account: accountId, refund } = req.body;
     if (!amount && !isNumber(amount)) {
       res.status(422).send({
@@ -112,7 +122,9 @@ const reservesController = {
     }
 
     try {
-      const reserveToUpdate = await Reserve.findById(reserveId);
+      const reserveToUpdate = await Reserve.findById(reserveId).populate(
+        'reserves_parts'
+      );
       const accountToUpdate = await Account.findById(accountId);
       if (!accountToUpdate || !reserveToUpdate) {
         res.status(422).send({
@@ -134,16 +146,25 @@ const reservesController = {
       }
       reservePart.value -= amount;
       accountToUpdate.total_value -= amount;
-      reserveToUpdate.current_value -= amount;
-      if (refund) {
-        reservePart.refund_value += amount;
-      }
+      const current_value = sumItensInArray(
+        reserveToUpdate.reserves_parts,
+        'value'
+      );
       reservePart.save();
       accountToUpdate.save();
       reserveToUpdate.save();
+      reserveToUpdate.missing_value =
+        reserveToUpdate.goal_value - current_value;
+      if (reserveToUpdate.missing_value < 0) {
+        reserveToUpdate.missing_value = 0;
+      }
+      if (refund) {
+        reservePart.refund_value += amount;
+      }
+      reserveToUpdate.current_value = current_value;
       log.insert({
         date: new Date(),
-        description: `Removido ${amount} reais da reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} valor final ${reserveToUpdate.current_value}`,
+        description: `Removido ${amount} reais da reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} valor final ${current_value}`,
       });
       res.send(reserveToUpdate);
     } catch (err) {
@@ -205,6 +226,15 @@ const reservesController = {
         });
         return;
       }
+      const reserveToUpdate: any = await Reserve.findById(reserveId);
+      if (!reserveToUpdate) {
+        res.status(422).send({
+          msg: 'Reserva não encontrada',
+          code: 422,
+        });
+        return;
+      }
+
       queryParam.reserve = reserveId;
       let reservePart = await ReservePart.findOne(queryParam);
       let isNewReservePart = false;
@@ -215,46 +245,50 @@ const reservesController = {
           refund_value: 0,
         });
         isNewReservePart = true;
+      } else {
+        reservePart.value += amount;
       }
-
-      const reserveToUpdate = await Reserve.findById(reserveId);
-      if (!reserveToUpdate) {
-        res.status(422).send({
-          msg: 'Reserva não encontrada',
-          code: 422,
-        });
-        return;
+      if (isNewReservePart) {
+        reserveToUpdate.reserves_parts.push(reservePart.id);
       }
-
       if (accountId) {
         if (isNewReservePart) {
           accountToUpdate.reserves_parts.push(reservePart.id);
         }
         accountToUpdate.total_value += amount;
-        accountToUpdate.save();
       } else if (investmentId) {
         // if (isNewReservePart) {
         // investmentToUpdate.reserves_parts.push(reservePart.id);}
         // investmentToUpdate.total_value += amount;
         // investmentToUpdate.save();
       }
-      reservePart.value += amount;
       if (reservePart.refund_value - amount < 0) {
         reservePart.refund_value = 0;
       } else {
         reservePart.refund_value -= amount;
       }
+
       reservePart.save();
-      if (isNewReservePart) {
-        reserveToUpdate.reserves_parts.push(reservePart.id);
-      }
-      reserveToUpdate.current_value += amount;
-      if (reserveToUpdate.missing_value - amount < 0) {
-        reserveToUpdate.missing_value = 0;
-      } else {
-        reserveToUpdate.missing_value -= amount;
-      }
+      accountToUpdate.save();
       reserveToUpdate.save();
+
+      const [{ totalValue }] = await ReservePart.aggregate([
+        { $match: { reserve: new ObjectId(reserveToUpdate.id) } },
+        {
+          $group: {
+            _id: null,
+            totalValue: {
+              $sum: { $sum: '$value' },
+            },
+          },
+        },
+      ]);
+      reserveToUpdate.current_value = totalValue;
+      reserveToUpdate.missing_value =
+        reserveToUpdate.goal_value - reserveToUpdate.current_value;
+      if (reserveToUpdate.missing_value < 0) {
+        reserveToUpdate.missing_value = 0;
+      }
 
       log.insert({
         date: new Date(),
@@ -304,6 +338,72 @@ const reservesController = {
         description: `A reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} teve sua meta atualizada para ${reserveToUpdate.goal_value}`,
       });
       res.status(200).send(reserveToUpdate);
+    } catch (err) {
+      console.error(err);
+      res.status(422).send({
+        msg: 'Falha na atualização da quantia',
+        code: 422,
+        stacktrace: err,
+      });
+    }
+  },
+  transferMoney: async (req, res) => {
+    const {
+      oldReserve: oldReserveId,
+      newReserve: newReserveId,
+      account: accountId,
+      amount,
+    } = req.body;
+    if (!amount && !isNumber(amount)) {
+      res.status(422).send({
+        msg: 'Envie uma quantia valida',
+        code: 422,
+      });
+      return;
+    }
+    if (!oldReserveId || !newReserveId) {
+      res.status(422).send({
+        msg: 'Envie as reservas.',
+        code: 422,
+      });
+      return;
+    }
+    try {
+      const oldReservePart = await ReservePart.findOne({
+        reserve: oldReserveId,
+        account: accountId,
+      }).populate('reserve');
+
+      if (!oldReservePart) {
+        res.oldReservePart(422).send({
+          msg: 'Reserva antiga não encontrada',
+          code: 422,
+        });
+        return;
+      }
+      oldReservePart.value -= amount;
+      let newReservePart: any = await ReservePart.findOne({
+        reserve: newReserveId,
+        account: accountId,
+      }).populate('reserve');
+
+      if (!newReservePart) {
+        newReservePart = await ReservePart.create({
+          value: amount,
+          account: accountId,
+          reserve: newReserveId,
+        });
+      } else {
+        newReservePart.value += amount;
+
+        newReservePart.save();
+      }
+      oldReservePart.save();
+      log.insert({
+        date: new Date(),
+        description: `Foi transferido ${amount} da reserva ${oldReservePart.reserve.name} ID: ${oldReservePart.reserve} para a reserva de ID: ${newReservePart.reserve.id}`,
+      });
+      res.status(200).send({ oldReservePart, newReservePart });
     } catch (err) {
       console.error(err);
       res.status(422).send({

@@ -13,7 +13,7 @@ router.put('/:id', accountController.update);
 
 router.delete('/:id', accountController.delete);
 
-router.post('/addMoney/', accountController.addMoney);
+router.post('/addMoney', accountController.addMoney);
 
 router.post('/removeMoney/', accountController.removeMoney);
 
