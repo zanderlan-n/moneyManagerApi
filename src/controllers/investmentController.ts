@@ -203,5 +203,48 @@ const investmentsController = {
       });
     }
   },
+  updateCurrentValue: async (req, res) => {
+    const { amount, investment: investmentId } = req.body;
+    if (!amount && !isNumber(amount)) {
+      res.status(422).send({
+        msg: 'Envie uma quantia valida',
+        code: 422,
+      });
+      return;
+    }
+
+    if (!investmentId) {
+      res.status(422).send({
+        msg: 'Envie a conta de investimento!',
+        code: 422,
+      });
+      return;
+    }
+    try {
+      const investmentToUpdate = await Investment.findById(investmentId);
+      if (!investmentToUpdate) {
+        res.status(422).send({
+          msg: 'O investimento não foi encontrado!',
+          code: 422,
+        });
+        return;
+      }
+      investmentToUpdate.current_value = amount;
+      await investmentToUpdate.save();
+      log.insert({
+        date: new Date(),
+        description: `Atualizado o valor do investimento ${investmentToUpdate.name} de ID: ${investmentToUpdate.id} valor final ${investmentToUpdate.current_value}`,
+      });
+      res.send(investmentToUpdate);
+    } catch (err) {
+      console.error(err);
+      res.status(422).send({
+        msg: 'Falha na atualização da quantia',
+        code: 422,
+        stacktrace: err,
+      });
+    }
+  },
+  getProfit: async (req, res) => {},
 };
 export default investmentsController;

@@ -48,7 +48,6 @@ const InvestmentSchema = new Schema({
   },
   percentage: {
     type: Number,
-    required: [true, '*Campo obrigatório!'],
   },
   start_date: {
     type: Date,

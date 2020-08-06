@@ -17,4 +17,8 @@ router.post('/addmoney', investmentsController.addMoney);
 
 router.post('/withdrawMoney', investmentsController.withdrawMoney);
 
+router.post('/updatecurrentvalue', investmentsController.updateCurrentValue);
+
+router.post('/profit', investmentsController.getProfit);
+
 export default router;
