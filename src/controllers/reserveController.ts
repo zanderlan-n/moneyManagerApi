@@ -8,6 +8,25 @@ import { Investment } from '../models/investment';
 import { ReservePart, IReservePart, ReservePart } from '../models/reservePart';
 import { sumItensInArray } from '../utils/utils';
 
+const getReserveCurrentValue = async (id: any) => {
+  const [{ totalValue }] = await ReservePart.aggregate([
+    { $match: { reserve: new ObjectId(id) } },
+    {
+      $group: {
+        _id: null,
+        totalValue: {
+          $sum: { $sum: '$value' },
+        },
+      },
+    },
+  ]);
+  return totalValue;
+};
+const getReserveMissingValue = (goalValue: number, currentValue: number) => {
+  const result = goalValue - currentValue;
+  return result < 0 ? 0 : result;
+};
+
 const reservesController = {
   get: async (req, res) => {
     try {
@@ -40,10 +59,10 @@ const reservesController = {
     try {
       const reserves = await Reserve.find({}).populate('reserves_parts');
       reserves.forEach((item, i) => {
-        reserves[i].current_value = sumItensInArray(
-          item.reserves_parts,
-          'value'
-        );
+        const currentValue = sumItensInArray(item.reserves_parts, 'value');
+        reserves[i].current_value = currentValue;
+        const missingValue = reserves[i].goal_value - currentValue;
+        reserves[i].missing_value = missingValue >= 0 ? missingValue : 0;
       });
       res.send(reserves);
     } catch (err) {
@@ -122,9 +141,7 @@ const reservesController = {
     }
 
     try {
-      const reserveToUpdate = await Reserve.findById(reserveId).populate(
-        'reserves_parts'
-      );
+      const reserveToUpdate = await Reserve.findById(reserveId);
       const accountToUpdate = await Account.findById(accountId);
       if (!accountToUpdate || !reserveToUpdate) {
         res.status(422).send({
@@ -146,25 +163,21 @@ const reservesController = {
       }
       reservePart.value -= amount;
       accountToUpdate.total_value -= amount;
-      const current_value = sumItensInArray(
-        reserveToUpdate.reserves_parts,
-        'value'
+      await reservePart.save();
+      await accountToUpdate.save();
+      await reserveToUpdate.save();
+      const currentValue = await getReserveCurrentValue(reserveToUpdate.id);
+      reserveToUpdate.missing_value = getReserveMissingValue(
+        reserveToUpdate.goal_value,
+        currentValue
       );
-      reservePart.save();
-      accountToUpdate.save();
-      reserveToUpdate.save();
-      reserveToUpdate.missing_value =
-        reserveToUpdate.goal_value - current_value;
-      if (reserveToUpdate.missing_value < 0) {
-        reserveToUpdate.missing_value = 0;
-      }
       if (refund) {
         reservePart.refund_value += amount;
       }
-      reserveToUpdate.current_value = current_value;
+      reserveToUpdate.current_value = currentValue;
       log.insert({
         date: new Date(),
-        description: `Removido ${amount} reais da reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} valor final ${current_value}`,
+        description: `Removido ${amount} reais da reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} valor final ${currentValue}`,
       });
       res.send(reserveToUpdate);
     } catch (err) {
@@ -268,28 +281,18 @@ const reservesController = {
         reservePart.refund_value -= amount;
       }
 
-      reservePart.save();
-      accountToUpdate.save();
-      reserveToUpdate.save();
+      await reservePart.save();
+      await accountToUpdate.save();
+      await reserveToUpdate.save();
 
-      const [{ totalValue }] = await ReservePart.aggregate([
-        { $match: { reserve: new ObjectId(reserveToUpdate.id) } },
-        {
-          $group: {
-            _id: null,
-            totalValue: {
-              $sum: { $sum: '$value' },
-            },
-          },
-        },
-      ]);
-      reserveToUpdate.current_value = totalValue;
-      reserveToUpdate.missing_value =
-        reserveToUpdate.goal_value - reserveToUpdate.current_value;
-      if (reserveToUpdate.missing_value < 0) {
-        reserveToUpdate.missing_value = 0;
-      }
+      reserveToUpdate.current_value = await getReserveCurrentValue(
+        reserveToUpdate.id
+      );
 
+      reserveToUpdate.missing_value = getReserveMissingValue(
+        reserveToUpdate.goal_value,
+        reserveToUpdate.current_value
+      );
       log.insert({
         date: new Date(),
         description: `Adicionado ${amount} reais a reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} valor final ${reserveToUpdate.current_value}`,
@@ -330,9 +333,17 @@ const reservesController = {
         });
         return;
       }
-      reserveToUpdate.goal_value = newGoal;
-      reserveToUpdate.save();
 
+      reserveToUpdate.goal_value = newGoal;
+      await reserveToUpdate.save();
+
+      reserveToUpdate.current_value = await getReserveCurrentValue(
+        reserveToUpdate.id
+      );
+      reserveToUpdate.missing_value = getReserveMissingValue(
+        reserveToUpdate.goal_value,
+        reserveToUpdate.current_value
+      );
       log.insert({
         date: new Date(),
         description: `A reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} teve sua meta atualizada para ${reserveToUpdate.goal_value}`,
@@ -372,7 +383,7 @@ const reservesController = {
       const oldReservePart = await ReservePart.findOne({
         reserve: oldReserveId,
         account: accountId,
-      }).populate('reserve');
+      });
 
       if (!oldReservePart) {
         res.oldReservePart(422).send({
@@ -385,7 +396,8 @@ const reservesController = {
       let newReservePart: any = await ReservePart.findOne({
         reserve: newReserveId,
         account: accountId,
-      }).populate('reserve');
+      });
+      const reserve = await Reserve.findById(newReserveId);
 
       if (!newReservePart) {
         newReservePart = await ReservePart.create({
@@ -393,15 +405,24 @@ const reservesController = {
           account: accountId,
           reserve: newReserveId,
         });
+
+        await Account.updateOne(
+          {
+            _id: new ObjectId(accountId),
+          },
+          { $push: { reserves_parts: newReservePart.id } }
+        );
+        reserve.reserves_parts.push(newReservePart.id);
+        reserve.save();
       } else {
         newReservePart.value += amount;
-
-        newReservePart.save();
+        await newReservePart.save();
       }
-      oldReservePart.save();
+      await oldReservePart.save();
+
       log.insert({
         date: new Date(),
-        description: `Foi transferido ${amount} da reserva ${oldReservePart.reserve.name} ID: ${oldReservePart.reserve} para a reserva de ID: ${newReservePart.reserve.id}`,
+        description: `Foi transferido ${amount} da reserva ${reserve.name} ID: ${oldReservePart.reserve} para a reserva de ID: ${newReservePart.reserve.id}`,
       });
       res.status(200).send({ oldReservePart, newReservePart });
     } catch (err) {

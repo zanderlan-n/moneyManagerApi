@@ -135,7 +135,7 @@ const investmentsController = {
 
       investmentToUpdate.invested_amount += amount;
       investmentToUpdate.current_value += amount;
-      investmentToUpdate.save();
+      await investmentToUpdate.save();
       log.insert({
         date: new Date(),
         description: `Investido ${amount} reais no ${investmentToUpdate.name} de ID: ${investmentToUpdate.id} valor final ${investmentToUpdate.current_value}`,
@@ -187,7 +187,7 @@ const investmentsController = {
 
       investmentToUpdate.invested_amount -= amount;
       investmentToUpdate.current_value -= amount;
-      investmentToUpdate.save();
+      await investmentToUpdate.save();
       log.insert({
         date: new Date(),
         description: `Sacado ${amount} reais do ${investmentToUpdate.name} de ID: ${investmentToUpdate.id} valor final ${investmentToUpdate.current_value}`,

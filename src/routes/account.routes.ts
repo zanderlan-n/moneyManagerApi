@@ -13,8 +13,8 @@ router.put('/:id', accountController.update);
 
 router.delete('/:id', accountController.delete);
 
-router.post('/addMoney', accountController.addMoney);
+router.post('/addMoney/:id', accountController.addMoney);
 
-router.post('/removeMoney/', accountController.removeMoney);
+router.post('/removeMoney/:id', accountController.removeMoney);
 
 export default router;

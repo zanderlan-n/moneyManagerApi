@@ -136,25 +136,28 @@ const accountsController = {
     }
     try {
       const negativeAmount = amount * -1;
-      const account = await Account.findByIdAndUpdate(
-        req.params.id,
-        {
-          $inc: { total_value: negativeAmount, net_value: negativeAmount },
-        },
-        { new: true }
-      );
+      const account = await Account.findById(req.params.id);
       if (!account) {
-        res.status(422).send({
-          msg: 'Não foi possivel atualizar a conta',
+        return res.status(422).send({
+          msg: 'Não foi possivel localizar a conta',
           code: 422,
         });
-      } else {
-        log.insert({
-          date: new Date(),
-          description: `Removido ${amount} reais da conta ${account.name} de ID: ${account.id} valor final ${account.total_value}`,
-        });
-        res.send(account);
       }
+      if (account.net_value >= amount) {
+        account.net_value -= amount;
+        account.total_value -= amount;
+        account.save();
+      } else {
+        return res.status(422).send({
+          msg: 'Saldo liquido insuficiente',
+          code: 422,
+        });
+      }
+      log.insert({
+        date: new Date(),
+        description: `Removido ${amount} reais da conta ${account.name} de ID: ${account.id} valor final ${account.total_value}`,
+      });
+      res.send(account);
     } catch (err) {
       console.error(err);
       res.status(422).send({
