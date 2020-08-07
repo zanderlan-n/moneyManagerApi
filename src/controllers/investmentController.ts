@@ -1,8 +1,11 @@
+import isBefore from 'date-fns/isBefore';
+import { isAfter } from 'date-fns';
 import {
   Investment,
   IInvestment,
-  IInvestmentDetails,
-  IInvestmentDetails,
+  IInvestmentHistory,
+  IInvestmentHistory,
+  HistoryType,
 } from '../models/investment';
 import { camelObjToSnake } from '../utils/parsers';
 import { isNumber } from '../utils/validators';
@@ -126,12 +129,13 @@ const investmentsController = {
         });
         return;
       }
-      const detail: Partial<IInvestmentDetails> = {
+      const detail: Partial<IInvestmentHistory> = {
         amount,
         date: new Date(),
         before_amount: investmentToUpdate.current_value,
+        type: HistoryType.NEW,
       };
-      investmentToUpdate.details.push(detail);
+      investmentToUpdate.history.push(detail);
 
       investmentToUpdate.invested_amount += amount;
       investmentToUpdate.current_value += amount;
@@ -178,12 +182,12 @@ const investmentsController = {
         });
         return;
       }
-      const detail: Partial<IInvestmentDetails> = {
+      const detail: Partial<IInvestmentHistory> = {
         amount: amount * -1,
         date: new Date(),
         before_amount: investmentToUpdate.current_value,
       };
-      investmentToUpdate.details.push(detail);
+      investmentToUpdate.history.push(detail);
 
       investmentToUpdate.invested_amount -= amount;
       investmentToUpdate.current_value -= amount;
@@ -229,6 +233,12 @@ const investmentsController = {
         });
         return;
       }
+      investmentToUpdate.history.push({
+        amount: amount - investmentToUpdate.current_value,
+        type: HistoryType.UPDATE,
+        date: new Date(),
+        before_amount: investmentToUpdate.current_value,
+      });
       investmentToUpdate.current_value = amount;
       await investmentToUpdate.save();
       log.insert({
@@ -245,6 +255,35 @@ const investmentsController = {
       });
     }
   },
-  getProfit: async (req, res) => {},
+  getProfit: async (req, res) => {
+    const { endDate, initDate } = req.body;
+    const investment = await Investment.findById(req.params.id);
+    if (!investment) {
+      res.status(422).send({
+        msg: 'O investimento não foi encontrado!',
+        code: 422,
+      });
+      return;
+    }
+    try {
+      const history = investment.history.filter(
+        (item) =>
+          isBefore(item.date, endDate ? new Date(endDate) : new Date()) &&
+          isAfter(
+            item.date,
+            initDate ? new Date(initDate) : new Date(investment.start_date)
+          ) &&
+          item.type === HistoryType.UPDATE
+      );
+      const profit = history.reduce((a, b) => a + b.amount, 0);
+      res.send({ history, profit });
+    } catch (err) {
+      console.log(err);
+      res.status(422).send({
+        msg: 'Não foi possivel buscar o lucro!',
+        code: 422,
+      });
+    }
+  },
 };
 export default investmentsController;

@@ -19,6 +19,6 @@ router.post('/withdrawMoney', investmentsController.withdrawMoney);
 
 router.post('/updatecurrentvalue', investmentsController.updateCurrentValue);
 
-router.post('/profit', investmentsController.getProfit);
+router.post('/profit/:id', investmentsController.getProfit);
 
 export default router;

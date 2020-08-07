@@ -1,7 +1,13 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { IReservePart } from './reservePart';
 
-export interface IInvestmentDetails extends Document {
+export enum HistoryType {
+  NEW = 'new',
+  UPDATE = 'update',
+}
+
+export interface IInvestmentHistory extends Document {
+  type: string;
   amount: number;
   date: Date;
   before_amount: number;
@@ -13,11 +19,11 @@ export interface IInvestment extends Document {
   invested_amount: number;
   percentage: number;
   start_date: Date;
-  details: IInvestmentDetails[];
+  history: IInvestmentHistory[];
   reserves_parts: IReservePart[];
 }
 
-const InvestmentDetailsSchema = new Schema({
+const InvestmentHistorySchema = new Schema({
   amount: {
     type: Number,
     required: [true, '*Campo obrigatório!'],
@@ -28,6 +34,11 @@ const InvestmentDetailsSchema = new Schema({
   },
   before_amount: {
     type: Number,
+    required: [true, '*Campo obrigatório!'],
+  },
+  type: {
+    type: String,
+    enum: Object.values(HistoryType),
     required: [true, '*Campo obrigatório!'],
   },
 });
@@ -53,8 +64,8 @@ const InvestmentSchema = new Schema({
     type: Date,
     required: [true, '*Campo obrigatório!'],
   },
-  details: {
-    type: [InvestmentDetailsSchema],
+  history: {
+    type: [InvestmentHistorySchema],
   },
   reserves_parts: [{ type: Schema.Types.ObjectId, ref: 'reservesParts' }],
 });
