@@ -4,8 +4,12 @@ import { camelObjToSnake } from '../utils/parsers';
 import { isNumber } from '../utils/validators';
 import { Account, IAccount } from '../models/account';
 import log from './logController';
-import { Investment } from '../models/investment';
-import { ReservePart, IReservePart, ReservePart } from '../models/reservePart';
+import {
+  Investment,
+  IInvestmentHistory,
+  HistoryType,
+} from '../models/investment';
+import { ReservePart, IReservePart } from '../models/reservePart';
 import { sumItensInArray } from '../utils/utils';
 
 const getReserveCurrentValue = async (id: any) => {
@@ -131,7 +135,13 @@ const reservesController = {
     }
   },
   withdrawMoney: async (req, res) => {
-    const { amount, reserve: reserveId, account: accountId, refund } = req.body;
+    const {
+      amount,
+      reserve: reserveId,
+      account: accountId,
+      refund,
+      investment: investmentId,
+    } = req.body;
     if (!amount && !isNumber(amount)) {
       res.status(422).send({
         msg: 'Envie uma quantia valida',
@@ -141,19 +151,47 @@ const reservesController = {
     }
 
     try {
-      const reserveToUpdate = await Reserve.findById(reserveId);
-      const accountToUpdate = await Account.findById(accountId);
-      if (!accountToUpdate || !reserveToUpdate) {
+      if (!accountId && !investmentId) {
         res.status(422).send({
-          msg: 'Conta ou reserva não encontrada',
+          msg: 'Envie a conta ou reserva.',
           code: 422,
         });
         return;
       }
-      const reservePart = await ReservePart.findOne({
-        reserve: reserveToUpdate.id,
-        account: accountToUpdate.id,
-      });
+      const reserveToUpdate = await Reserve.findById(reserveId);
+      if (!reserveToUpdate) {
+        res.status(422).send({
+          msg: 'Reserva não encontrada',
+          code: 422,
+        });
+        return;
+      }
+      let queryParam: any = {};
+      let accountToUpdate: any;
+      let investmentToUpdate: any;
+      if (accountId) {
+        queryParam = { account: accountId };
+        accountToUpdate = await Account.findById(accountId);
+        if (!accountToUpdate) {
+          res.status(422).send({
+            msg: 'Conta não encontrada',
+            code: 422,
+          });
+          return;
+        }
+      } else if (investmentId) {
+        queryParam = { investment: investmentId };
+        investmentToUpdate = await Investment.findById(investmentId);
+        if (!investmentToUpdate) {
+          res.status(422).send({
+            msg: 'Investimento não encontrado',
+            code: 422,
+          });
+          return;
+        }
+      }
+      queryParam.reserve = reserveId;
+      const reservePart = await ReservePart.findOne(queryParam);
       if (!reservePart) {
         res.status(422).send({
           msg: 'Parte da reserva não encontrada',
@@ -162,9 +200,22 @@ const reservesController = {
         return;
       }
       reservePart.value -= amount;
-      accountToUpdate.total_value -= amount;
+      if (accountId) {
+        accountToUpdate.total_value -= amount;
+        await accountToUpdate.save();
+      } else if (investmentId) {
+        const detail: Partial<IInvestmentHistory> = {
+          amount: amount * -1,
+          date: new Date(),
+          type: HistoryType.NEW,
+          before_amount: investmentToUpdate.current_value,
+        };
+        investmentToUpdate.history.push(detail);
+        investmentToUpdate.invested_amount -= amount;
+        investmentToUpdate.current_value -= amount;
+        await investmentToUpdate.save();
+      }
       await reservePart.save();
-      await accountToUpdate.save();
       await reserveToUpdate.save();
       const currentValue = await getReserveCurrentValue(reserveToUpdate.id);
       reserveToUpdate.missing_value = getReserveMissingValue(
@@ -219,6 +270,7 @@ const reservesController = {
     try {
       let queryParam: any = {};
       let accountToUpdate: any;
+      let investmentToUpdate: any;
       if (accountId) {
         queryParam = { account: accountId };
         accountToUpdate = await Account.findById(accountId);
@@ -230,14 +282,15 @@ const reservesController = {
           return;
         }
       } else if (investmentId) {
-        // TODO INVESTMENT
-        // const investmentToUpdate = await Investment.findById(accountId);
         queryParam = { investment: investmentId };
-        res.status(422).send({
-          msg: 'TODO INVESTEMENT',
-          code: 422,
-        });
-        return;
+        investmentToUpdate = await Investment.findById(investmentId);
+        if (!investmentToUpdate) {
+          res.status(422).send({
+            msg: 'Investimento não encontrado',
+            code: 422,
+          });
+          return;
+        }
       }
       const reserveToUpdate: any = await Reserve.findById(reserveId);
       if (!reserveToUpdate) {
@@ -269,11 +322,21 @@ const reservesController = {
           accountToUpdate.reserves_parts.push(reservePart.id);
         }
         accountToUpdate.total_value += amount;
+        await accountToUpdate.save();
       } else if (investmentId) {
-        // if (isNewReservePart) {
-        // investmentToUpdate.reserves_parts.push(reservePart.id);}
-        // investmentToUpdate.total_value += amount;
-        // investmentToUpdate.save();
+        if (isNewReservePart) {
+          investmentToUpdate.reserves_parts.push(reservePart.id);
+        }
+        const detail: Partial<IInvestmentHistory> = {
+          amount,
+          date: new Date(),
+          before_amount: investmentToUpdate.current_value,
+          type: HistoryType.NEW,
+        };
+        investmentToUpdate.history.push(detail);
+        investmentToUpdate.invested_amount += amount;
+        investmentToUpdate.current_value += amount;
+        investmentToUpdate.save();
       }
       if (reservePart.refund_value - amount < 0) {
         reservePart.refund_value = 0;
@@ -282,7 +345,6 @@ const reservesController = {
       }
 
       await reservePart.save();
-      await accountToUpdate.save();
       await reserveToUpdate.save();
 
       reserveToUpdate.current_value = await getReserveCurrentValue(
@@ -358,7 +420,7 @@ const reservesController = {
       });
     }
   },
-  transferMoney: async (req, res) => {
+  transferMoneyBetweenReserves: async (req, res) => {
     const {
       oldReserve: oldReserveId,
       newReserve: newReserveId,
@@ -425,6 +487,137 @@ const reservesController = {
         description: `Foi transferido ${amount} da reserva ${reserve.name} ID: ${oldReservePart.reserve} para a reserva de ID: ${newReservePart.reserve.id}`,
       });
       res.status(200).send({ oldReservePart, newReservePart });
+    } catch (err) {
+      console.error(err);
+      res.status(422).send({
+        msg: 'Falha na atualização da quantia',
+        code: 422,
+        stacktrace: err,
+      });
+    }
+  },
+  setMoneyAsReserve: async (req, res) => {
+    const {
+      amount,
+      account: accountId,
+      reserve: reserveId,
+      investment: investmentId,
+    } = req.body;
+
+    if (!amount && !isNumber(amount)) {
+      res.status(422).send({
+        msg: 'Envie uma quantia valida',
+        code: 422,
+      });
+      return;
+    }
+    if (
+      (!investmentId && !accountId) ||
+      (investmentId && accountId) ||
+      !reserveId
+    ) {
+      res.status(422).send({
+        msg: 'Envie somente uma conta ou investimento e uma reserva',
+        code: 422,
+      });
+      return;
+    }
+
+    try {
+      let queryParam: any = {};
+      let accountToUpdate: any;
+      let investmentToUpdate: any;
+      if (accountId) {
+        queryParam = { account: accountId };
+        accountToUpdate = await Account.findById(accountId);
+        if (!accountToUpdate) {
+          res.status(422).send({
+            msg: 'Conta não encontrada',
+            code: 422,
+          });
+          return;
+        }
+      } else if (investmentId) {
+        queryParam = { investment: investmentId };
+        investmentToUpdate = await Investment.findById(investmentId);
+        if (!investmentToUpdate) {
+          res.status(422).send({
+            msg: 'Investimento não encontrado',
+            code: 422,
+          });
+          return;
+        }
+      }
+      const reserveToUpdate: any = await Reserve.findById(reserveId);
+      if (!reserveToUpdate) {
+        res.status(422).send({
+          msg: 'Reserva não encontrada',
+          code: 422,
+        });
+        return;
+      }
+
+      queryParam.reserve = reserveId;
+      let reservePart = await ReservePart.findOne(queryParam);
+      let isNewReservePart = false;
+      if (!reservePart) {
+        reservePart = await ReservePart.create({
+          ...queryParam,
+          value: amount,
+          refund_value: 0,
+        });
+        isNewReservePart = true;
+      } else {
+        reservePart.value += amount;
+      }
+      if (isNewReservePart) {
+        reserveToUpdate.reserves_parts.push(reservePart.id);
+      }
+      if (accountId) {
+        if (isNewReservePart) {
+          accountToUpdate.reserves_parts.push(reservePart.id);
+        }
+        accountToUpdate.net_value -= amount;
+        await accountToUpdate.save();
+      } else if (investmentId) {
+        // TODO NET VALUE INVESTIMENT
+        // if (isNewReservePart) {
+        //   investmentToUpdate.reserves_parts.push(reservePart.id);
+        // }
+        // const detail: Partial<IInvestmentHistory> = {
+        //   amount,
+        //   date: new Date(),
+        //   before_amount: investmentToUpdate.current_value,
+        //   type: HistoryType.NEW,
+        // };
+        // investmentToUpdate.history.push(detail);
+        // investmentToUpdate.invested_amount += amount;
+        // investmentToUpdate.current_value += amount;
+        // investmentToUpdate.save();
+      }
+      if (reservePart.refund_value - amount < 0) {
+        reservePart.refund_value = 0;
+      } else {
+        reservePart.refund_value -= amount;
+      }
+
+      await reservePart.save();
+      await reserveToUpdate.save();
+
+      reserveToUpdate.current_value = await getReserveCurrentValue(
+        reserveToUpdate.id
+      );
+
+      reserveToUpdate.missing_value = getReserveMissingValue(
+        reserveToUpdate.goal_value,
+        reserveToUpdate.current_value
+      );
+      log.insert({
+        date: new Date(),
+        description: `Foi definito ${amount} reais como parte da reserva ${reserveToUpdate.name} de ID: ${reserveToUpdate.id} valor final ${reserveToUpdate.current_value}`,
+      });
+
+      res.send(reserveToUpdate);
     } catch (err) {
       console.error(err);
       res.status(422).send({

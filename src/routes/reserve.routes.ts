@@ -19,6 +19,11 @@ router.post('/withdrawMoney', reserveController.withdrawMoney);
 
 router.post('/updategoal', reserveController.updateGoal);
 
-router.post('/transferMoney', reserveController.transferMoney);
+router.post(
+  '/transferMoneyBetweenReserves',
+  reserveController.transferMoneyBetweenReserves
+);
+
+router.post('/setMoneyAsReserve', reserveController.setMoneyAsReserve);
 
 export default router;

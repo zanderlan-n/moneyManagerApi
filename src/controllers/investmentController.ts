@@ -4,7 +4,6 @@ import {
   Investment,
   IInvestment,
   IInvestmentHistory,
-  IInvestmentHistory,
   HistoryType,
 } from '../models/investment';
 import { camelObjToSnake } from '../utils/parsers';
@@ -286,4 +285,5 @@ const investmentsController = {
     }
   },
 };
+
 export default investmentsController;
